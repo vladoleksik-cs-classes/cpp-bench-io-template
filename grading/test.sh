@@ -42,7 +42,7 @@ fi
 # Convert MB → KB
 MEM_LIMIT_KB=$(( MEM_LIMIT_MB * 1024 ))
 
-PROGRAM="./program"
+PROGRAM="../program"
 pass=0
 fail=0
 i=0
