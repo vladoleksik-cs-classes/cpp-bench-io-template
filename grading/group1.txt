@@ -1,0 +1,2 @@
+tests/0.in tests/0.ok
+tests/1.in tests/1.ok
