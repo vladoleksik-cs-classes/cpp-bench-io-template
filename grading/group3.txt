@@ -1,0 +1,2 @@
+tests/8.in tests/8.ok
+tests/9.in tests/9.ok
