@@ -42,7 +42,7 @@ fi
 # Convert MB → KB
 MEM_LIMIT_KB=$(( MEM_LIMIT_MB * 1024 ))
 
-PROGRAM="../program"
+PROGRAM="program"
 pass=0
 fail=0
 i=0
@@ -50,57 +50,57 @@ i=0
 # ANSI colors
 RED="\e[31m"; GREEN="\e[32m"; YELLOW="\e[33m"; RESET="\e[0m"
 
-while read -r infile okfile; do
-  ((i++))
-  echo -n "Test #$i: "
+printf "%-6s | %-6s | %-10s | %-5s | %-8s | %-8s\n" "Iter" "Result" "Status" "Exit" "Time(s)" "Mem(KB)"
+echo "----------------------------------------------------------------------"
 
-  # skip missing files
+while read -r infile okfile; do
+  i=$(( i + 1 ))
+
+  #skip missing files
   if [[ ! -f "$infile" || ! -f "$okfile" ]]; then
     echo -e "${YELLOW}SKIP${RESET} (missing '$infile' or '$okfile')"
     continue
   fi
 
-  # prepare fixed I/O names
-  cp "$infile" input.txt
+  sandbox_dir=$(isolate --init)
 
-  TMPTIME=$(mktemp)
+  cp "$PROGRAM" "$sandbox_dir/box/program"
+  cp "$infile" "$sandbox_dir/box/input.txt"
 
-  {
-    ulimit -v "$MEM_LIMIT_KB"                   # cap virtual memory
-    exec timeout "${TIME_LIMIT}s" \
-      /usr/bin/time -f "TIME:%e\nMEM:%M" -o "$TMPTIME" \
-      "$PROGRAM"                               # reads input.txt, writes output.txt
-  } 2>/dev/null
-  status=$?
+  set +eo pipefail
+  isolate --chdir=/box --meta=res.txt --mem=$MEM_LIMIT_KB --time=$TIME_LIMIT --wall-time=5 --run -- ./program > /dev/null 2>&1 || true
+  set -eo pipefail
+  #--processes=8
+  #--stdin=file1.txt \
+  #--stdout=output.txt \
+  #--stderr=errors.txt \
 
-  # read stats
-  mapfile -t stats < "$TMPTIME"
-  time_used=${stats[0]#TIME:}
-  mem_used=${stats[1]#MEM:}
+  META="res.txt"
 
-  if [ $status -eq 124 ]; then
-    echo -e "${YELLOW}TIMEOUT${RESET} (${time_used}s)"
-    ((fail++))
-  elif [ $status -ne 0 ]; then
-    echo -e "${RED}RUNTIME ERROR (exit $status)${RESET}"
-    ((fail++))
-  else
-    if diff -q output.txt "$okfile" >/dev/null; then
-      echo -e "${GREEN}PASS${RESET} (time=${time_used}s, mem=${mem_used}KB)"
-      ((pass++))
+  # Read values
+  EXITCODE=$(grep -m1 '^exitcode:' "$META" | cut -d: -f2 || echo "-")
+  CG_MEM=$(grep -m1 '^max-rss:' "$META" | cut -d: -f2)
+  TIME=$(grep -m1 '^time:' "$META" | cut -d: -f2)
+  STATUS=$(grep -m1 '^status:' "$META" | cut -d: -f2 || echo "OK")
+ 
+  if [[ "$STATUS" == "OK" && "$EXITCODE" == "0" ]]; then
+    if diff -q -Z --strip-trailing-cr "$sandbox_dir/box/output.txt" "$okfile" >/dev/null; then
+      printf "%-6s | %-6b   | %-10b         | %-5s | %-8s | %-8s\n" "$i" "${GREEN}PASS${RESET}" "${GREEN}OK${RESET}" "$EXITCODE" "$TIME" "$CG_MEM"
+      pass=$(( pass + 1 ))
     else
-      echo -e "${RED}FAIL${RESET} (time=${time_used}s, mem=${mem_used}KB)"
-      echo "  └─ infile:    $infile"
-      echo "  └─ expected:  $okfile"
-      echo "  └─ got:       output.txt"
-      ((fail++))
+      printf "%-6s | %-6b   | %-10b         | %-5s | %-8s | %-8s\n" "$i" "${RED}FAIL${RESET}" "${RED}WA${RESET}" "$EXITCODE" "$TIME" "$CG_MEM"
+      fail=$(( fail + 1 ))
     fi
+  else
+    printf "%-6s | %-6b   | %-10b         | %-5s | %-8s | %-8s\n" "$i" "${RED}FAIL${RESET}" "${RED}${STATUS}${RESET}" "$EXITCODE" "$TIME" "$CG_MEM"
+    fail=$(( fail + 1 ))
   fi
 
   # cleanup for next test
-  rm -f input.txt output.txt "$TMPTIME"
+  isolate --cleanup
 done < "$MANIFEST"
 
+echo "----------------------------------------------------------------------"
 echo
 echo "Summary: $pass passed, $fail failed out of $i tests."
 exit $(( fail>0 ))

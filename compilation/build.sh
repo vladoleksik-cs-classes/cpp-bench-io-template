@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SRC="../main.cpp"
+SRC="./main.cpp"
 OUT="program"
 
 echo "Compiling ${SRC} → ${OUT}..."

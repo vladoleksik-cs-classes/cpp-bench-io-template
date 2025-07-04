@@ -1,0 +1,60 @@
+name: Autograding Tests
+'on':
+- push
+- repository_dispatch
+permissions:
+  checks: write
+  actions: read
+  contents: read
+jobs:
+  run-autograding-tests:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-classroom[bot]'
+    container:
+      image: cskulab/isolate:latest
+      options: --privileged
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Install build tools
+      run: |
+        apt-get update
+        apt-get install -y g++ build-essential
+    - name: Prepare testing
+      run: |
+        chmod +x ./compilation/build.sh
+        chmod +x ./grading/test.sh
+    - name: Compilation
+      run: ./compilation/build.sh
+    - name: n<15 (20 pts.)
+      id: n-15-20-pts
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: n<15 (20 pts.)
+        command: "./grading/test.sh -m \"grading/group1.txt\" -t 0.1 -l 64"
+        timeout: 10
+        max-score: 20
+    - name: n<100000 (60 pts.)
+      id: n-100000-60-pts
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: n<100000 (60 pts.)
+        command: "./grading/test.sh -m \"grading/group2.txt\" -t 0.1 -l 64"
+        timeout: 30
+        max-score: 60
+    - name: n<2000000000 (20 pts.)
+      id: n-2000000000-20-pts
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: n<2000000000 (20 pts.)
+        command: "./grading/test.sh -m \"grading/group3.txt\" -t 0.1 -l 64"
+        timeout: 10
+        max-score: 20
+    - name: Autograding Reporter
+      uses: classroom-resources/autograding-grading-reporter@v1
+      env:
+        N-15-20-PTS_RESULTS: "${{steps.n-15-20-pts.outputs.result}}"
+        N-100000-60-PTS_RESULTS: "${{steps.n-100000-60-pts.outputs.result}}"
+        N-2000000000-20-PTS_RESULTS: "${{steps.n-2000000000-20-pts.outputs.result}}"
+      with:
+        runners: n-15-20-pts,n-100000-60-pts,n-2000000000-20-pts

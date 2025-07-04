@@ -1,2 +1,2 @@
-tests/0.in tests/0.ok
-tests/1.in tests/1.ok
+grading/tests/0.in grading/tests/0.ok
+grading/tests/1.in grading/tests/1.ok
